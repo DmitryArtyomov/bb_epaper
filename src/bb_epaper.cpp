@@ -1024,7 +1024,28 @@ void BBEPAPER::startWrite(int iPlane)
 
 void BBEPAPER::writeData(uint8_t *pData, int iLen)
 {
-   bbepWriteData(&_bbep, pData, iLen);
+    if (_bbep.type == EP75_640x384) {
+        // This panel takes 4 bits per pixel (0 = black, 3 = white), so expand each
+        // 1-bpp input byte into 4 output bytes, sent in small chunks
+        static const uint8_t u8Lookup[4] = {0x00, 0x03, 0x30, 0x33};
+        uint8_t u8Temp[64];
+        int i, j, iChunk;
+        while (iLen > 0) {
+            iChunk = (iLen > 16) ? 16 : iLen;
+            for (i = 0, j = 0; i < iChunk; i++) {
+                uint8_t uc = pData[i];
+                u8Temp[j++] = u8Lookup[uc >> 6];
+                u8Temp[j++] = u8Lookup[(uc >> 4) & 3];
+                u8Temp[j++] = u8Lookup[(uc >> 2) & 3];
+                u8Temp[j++] = u8Lookup[uc & 3];
+            }
+            bbepWriteData(&_bbep, u8Temp, iChunk * 4);
+            pData += iChunk;
+            iLen -= iChunk;
+        }
+        return;
+    }
+    bbepWriteData(&_bbep, pData, iLen);
 } /* writeData() */
 
 void BBEPAPER::writeCmd2(uint8_t u8Cmd, uint8_t u8Param)
